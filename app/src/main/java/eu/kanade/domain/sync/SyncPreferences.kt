@@ -13,6 +13,8 @@ class SyncPreferences(
     fun clientAPIKey() = preferenceStore.getString("sync_client_api_key", "")
     fun lastSyncTimestamp() = preferenceStore.getLong(Preference.appStateKey("last_sync_timestamp"), 0L)
 
+    fun lastSyncEtag() = preferenceStore.getString("sync_etag", "")
+
     fun syncInterval() = preferenceStore.getInt("sync_interval", 0)
     fun syncService() = preferenceStore.getInt("sync_service", 0)
 
@@ -27,7 +29,7 @@ class SyncPreferences(
     )
 
     fun uniqueDeviceID(): String {
-        val uniqueIDPreference = preferenceStore.getString("unique_device_id", "")
+        val uniqueIDPreference = preferenceStore.getString(Preference.appStateKey("unique_device_id"), "")
 
         // Retrieve the current value of the preference
         var uniqueID = uniqueIDPreference.get()
@@ -51,8 +53,15 @@ class SyncPreferences(
             tracking = preferenceStore.getBoolean("tracking", true).get(),
             history = preferenceStore.getBoolean("history", true).get(),
             appSettings = preferenceStore.getBoolean("appSettings", true).get(),
+            extensionRepoSettings = preferenceStore.getBoolean("extensionRepoSettings", true).get(),
             sourceSettings = preferenceStore.getBoolean("sourceSettings", true).get(),
             privateSettings = preferenceStore.getBoolean("privateSettings", true).get(),
+
+            // SY -->
+            customInfo = preferenceStore.getBoolean("customInfo", true).get(),
+            readEntries = preferenceStore.getBoolean("readEntries", true).get(),
+            savedSearches = preferenceStore.getBoolean("savedSearches", true).get(),
+            // SY <--
         )
     }
 
@@ -63,8 +72,15 @@ class SyncPreferences(
         preferenceStore.getBoolean("tracking", true).set(syncSettings.tracking)
         preferenceStore.getBoolean("history", true).set(syncSettings.history)
         preferenceStore.getBoolean("appSettings", true).set(syncSettings.appSettings)
+        preferenceStore.getBoolean("extensionRepoSettings", true).set(syncSettings.extensionRepoSettings)
         preferenceStore.getBoolean("sourceSettings", true).set(syncSettings.sourceSettings)
         preferenceStore.getBoolean("privateSettings", true).set(syncSettings.privateSettings)
+
+        // SY -->
+        preferenceStore.getBoolean("customInfo", true).set(syncSettings.customInfo)
+        preferenceStore.getBoolean("readEntries", true).set(syncSettings.readEntries)
+        preferenceStore.getBoolean("savedSearches", true).set(syncSettings.savedSearches)
+        // SY <--
     }
 
     fun getSyncTriggerOptions(): SyncTriggerOptions {
@@ -73,7 +89,6 @@ class SyncPreferences(
             syncOnChapterOpen = preferenceStore.getBoolean("sync_on_chapter_open", false).get(),
             syncOnAppStart = preferenceStore.getBoolean("sync_on_app_start", false).get(),
             syncOnAppResume = preferenceStore.getBoolean("sync_on_app_resume", false).get(),
-            syncOnLibraryUpdate = preferenceStore.getBoolean("sync_on_library_update", false).get(),
         )
     }
 
@@ -86,7 +101,5 @@ class SyncPreferences(
             .set(syncTriggerOptions.syncOnAppStart)
         preferenceStore.getBoolean("sync_on_app_resume", false)
             .set(syncTriggerOptions.syncOnAppResume)
-        preferenceStore.getBoolean("sync_on_library_update", false)
-            .set(syncTriggerOptions.syncOnLibraryUpdate)
     }
 }

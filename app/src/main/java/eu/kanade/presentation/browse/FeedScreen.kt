@@ -70,7 +70,7 @@ fun FeedScreen(
     onClickDelete: (FeedSavedSearch) -> Unit,
     onClickManga: (Manga) -> Unit,
     onRefresh: () -> Unit,
-    getMangaState: @Composable (Manga, CatalogueSource?) -> State<Manga>,
+    getMangaState: @Composable (Manga) -> State<Manga>,
 ) {
     when {
         state.isLoading -> LoadingScreen()
@@ -92,7 +92,7 @@ fun FeedScreen(
                     refreshing = true
                     onRefresh()
                 },
-                enabled = { !state.isLoadingItems },
+                enabled = !state.isLoadingItems,
             ) {
                 ScrollbarLazyColumn(
                     contentPadding = contentPadding + topSmallPaddingValues,
@@ -103,7 +103,6 @@ fun FeedScreen(
                         key = { it.feed.id },
                     ) { item ->
                         GlobalSearchResultItem(
-                            modifier = Modifier.animateItemPlacement(),
                             title = item.title,
                             subtitle = item.subtitle,
                             onLongClick = {
@@ -116,10 +115,11 @@ fun FeedScreen(
                                     onClickSource(item.source)
                                 }
                             },
+                            modifier = Modifier.animateItem(),
                         ) {
                             FeedItem(
                                 item = item,
-                                getMangaState = { getMangaState(it, item.source) },
+                                getMangaState = { getMangaState(it) },
                                 onClickManga = onClickManga,
                             )
                         }

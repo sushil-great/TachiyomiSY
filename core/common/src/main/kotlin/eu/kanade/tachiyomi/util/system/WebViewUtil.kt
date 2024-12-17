@@ -38,7 +38,7 @@ object WebViewUtil {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val webView = WebView.getCurrentWebViewPackage() ?: return "how did you get here?"
             val pm = context.packageManager
-            val label = webView.applicationInfo.loadLabel(pm)
+            val label = webView.applicationInfo!!.loadLabel(pm)
             val version = webView.versionName
             "$label $version"
         } else {
@@ -73,7 +73,6 @@ fun WebView.setDefaultSettings() {
     with(settings) {
         javaScriptEnabled = true
         domStorageEnabled = true
-        databaseEnabled = true
         useWideViewPort = true
         loadWithOverviewMode = true
         cacheMode = WebSettings.LOAD_DEFAULT

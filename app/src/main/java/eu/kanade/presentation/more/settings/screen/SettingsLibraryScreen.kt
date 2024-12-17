@@ -25,7 +25,6 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import tachiyomi.domain.UnsortedPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
@@ -57,9 +56,7 @@ object SettingsLibraryScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val getCategories = remember { Injekt.get<GetCategories>() }
         val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
-        val allCategories by getCategories.subscribe().collectAsState(
-            initial = runBlocking { getCategories.await() },
-        )
+        val allCategories by getCategories.subscribe().collectAsState(initial = emptyList())
         // SY -->
         val unsortedPreferences = remember { Injekt.get<UnsortedPreferences>() }
         // SY <--
@@ -84,9 +81,6 @@ object SettingsLibraryScreen : SearchableSettings {
         val scope = rememberCoroutineScope()
         val userCategoriesCount = allCategories.filterNot(Category::isSystemCategory).size
 
-        val defaultCategory by libraryPreferences.defaultCategory().collectAsState()
-        val selectedCategory = allCategories.find { it.id == defaultCategory.toLong() }
-
         // For default category
         val ids = listOf(libraryPreferences.defaultCategory().defaultValue()) +
             allCategories.fastMap { it.id.toInt() }
@@ -108,7 +102,6 @@ object SettingsLibraryScreen : SearchableSettings {
                 Preference.PreferenceItem.ListPreference(
                     pref = libraryPreferences.defaultCategory(),
                     title = stringResource(MR.strings.default_category),
-                    subtitle = selectedCategory?.visualName ?: stringResource(MR.strings.default_category_summary),
                     entries = ids.zip(labels).toMap().toImmutableMap(),
                 ),
                 Preference.PreferenceItem.SwitchPreference(

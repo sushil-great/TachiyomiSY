@@ -31,6 +31,7 @@ import exh.md.handlers.FollowsHandler
 import exh.md.handlers.MangaHandler
 import exh.md.handlers.MangaHotHandler
 import exh.md.handlers.MangaPlusHandler
+import exh.md.handlers.NamicomiHandler
 import exh.md.handlers.PageHandler
 import exh.md.handlers.SimilarHandler
 import exh.md.network.MangaDexLoginHelper
@@ -86,6 +87,9 @@ class MangaDex(delegate: HttpSource, val context: Context) :
     private fun usePort443Only() = sourcePreferences.getBoolean(getStandardHttpsPreferenceKey(mdLang.lang), false)
     private fun blockedGroups() = sourcePreferences.getString(getBlockedGroupsPrefKey(mdLang.lang), "").orEmpty()
     private fun blockedUploaders() = sourcePreferences.getString(getBlockedUploaderPrefKey(mdLang.lang), "").orEmpty()
+    private fun coverQuality() = sourcePreferences.getString(getCoverQualityPrefKey(mdLang.lang), "").orEmpty()
+    private fun tryUsingFirstVolumeCover() = sourcePreferences.getBoolean(getTryUsingFirstVolumeCoverKey(mdLang.lang), false)
+    private fun altTitlesInDesc() = sourcePreferences.getBoolean(getAltTitlesInDescKey(mdLang.lang), false)
 
     private val mangadexService by lazy {
         MangaDexService(client)
@@ -123,6 +127,9 @@ class MangaDex(delegate: HttpSource, val context: Context) :
     private val mangaHotHandler by lazy {
         MangaHotHandler(network.client, network.defaultUserAgentProvider())
     }
+    private val namicomiHandler by lazy {
+        NamicomiHandler(network.client, network.defaultUserAgentProvider())
+    }
     private val pageHandler by lazy {
         PageHandler(
             headers,
@@ -132,6 +139,7 @@ class MangaDex(delegate: HttpSource, val context: Context) :
             bilibiliHandler,
             azukHandler,
             mangaHotHandler,
+            namicomiHandler,
             trackPreferences,
             mdList,
         )
@@ -184,11 +192,11 @@ class MangaDex(delegate: HttpSource, val context: Context) :
 
     @Deprecated("Use the 1.x API instead", replaceWith = ReplaceWith("getMangaDetails"))
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
-        return mangaHandler.fetchMangaDetailsObservable(manga, id)
+        return mangaHandler.fetchMangaDetailsObservable(manga, id, coverQuality(), tryUsingFirstVolumeCover(), altTitlesInDesc())
     }
 
     override suspend fun getMangaDetails(manga: SManga): SManga {
-        return mangaHandler.getMangaDetails(manga, id)
+        return mangaHandler.getMangaDetails(manga, id, coverQuality(), tryUsingFirstVolumeCover(), altTitlesInDesc())
     }
 
     @Deprecated("Use the 1.x API instead", replaceWith = ReplaceWith("getChapterList"))
@@ -234,7 +242,7 @@ class MangaDex(delegate: HttpSource, val context: Context) :
     override fun newMetaInstance() = MangaDexSearchMetadata()
 
     override suspend fun parseIntoMetadata(metadata: MangaDexSearchMetadata, input: Triple<MangaDto, List<String>, StatisticsMangaDto>) {
-        apiMangaParser.parseIntoMetadata(metadata, input.first, input.second, input.third)
+        apiMangaParser.parseIntoMetadata(metadata, input.first, input.second, input.third, null, coverQuality(), altTitlesInDesc())
     }
 
     // LoginSource methods
@@ -305,6 +313,10 @@ class MangaDex(delegate: HttpSource, val context: Context) :
         return similarHandler.getRelated(manga)
     }
 
+    suspend fun getMangaMetadata(track: Track): SManga? {
+        return mangaHandler.getMangaMetadata(track, id, coverQuality(), tryUsingFirstVolumeCover(), altTitlesInDesc())
+    }
+
     companion object {
         private const val dataSaverPref = "dataSaverV5"
 
@@ -328,6 +340,24 @@ class MangaDex(delegate: HttpSource, val context: Context) :
 
         fun getBlockedUploaderPrefKey(dexLang: String): String {
             return "${blockedUploaderPref}_$dexLang"
+        }
+
+        private const val coverQualityPref = "thumbnailQuality"
+
+        fun getCoverQualityPrefKey(dexLang: String): String {
+            return "${coverQualityPref}_$dexLang"
+        }
+
+        private const val tryUsingFirstVolumeCover = "tryUsingFirstVolumeCover"
+
+        fun getTryUsingFirstVolumeCoverKey(dexLang: String): String {
+            return "${tryUsingFirstVolumeCover}_$dexLang"
+        }
+
+        private const val altTitlesInDesc = "altTitlesInDesc"
+
+        fun getAltTitlesInDescKey(dexLang: String): String {
+            return "${altTitlesInDesc}_$dexLang"
         }
     }
 }

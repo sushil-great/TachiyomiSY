@@ -383,7 +383,7 @@ class EHentai(
                 doc.select("#gdd .gdt1").find { el ->
                     el.text().lowercase() == "posted:"
                 }!!.nextElementSibling()!!.text(),
-                MetadataUtil.EX_DATE_FORMAT.withZone(ZoneOffset.UTC)
+                MetadataUtil.EX_DATE_FORMAT.withZone(ZoneOffset.UTC),
             )!!.toInstant().toEpochMilli(),
             scanlator = EHentaiSearchMetadata.galleryId(location),
         )
@@ -401,7 +401,7 @@ class EHentai(
                     chapter_number = index + 2f,
                     date_upload = ZonedDateTime.parse(
                         posted,
-                        MetadataUtil.EX_DATE_FORMAT.withZone(ZoneOffset.UTC)
+                        MetadataUtil.EX_DATE_FORMAT.withZone(ZoneOffset.UTC),
                     ).toInstant().toEpochMilli(),
                     scanlator = EHentaiSearchMetadata.galleryId(link),
                 )
@@ -449,7 +449,11 @@ class EHentai(
     private fun parseChapterPage(response: Element) = with(response) {
         select(".gdtm a").map {
             Pair(it.child(0).attr("alt").toInt(), it.attr("href"))
-        }.sortedBy(Pair<Int, String>::first).map { it.second }
+        }.plus(
+            select("#gdt a").map {
+                Pair(it.child(0).attr("title").removePrefix("Page ").substringBefore(":").toInt(), it.attr("href"))
+            },
+        ).sortedBy(Pair<Int, String>::first).map { it.second }
     }
 
     private fun chapterPageCall(np: String): Observable<Response> {
@@ -542,9 +546,10 @@ class EHentai(
             if (
                 MATCH_SEEK_REGEX.matches(jumpSeekValue) ||
                 (
-                    MATCH_YEAR_REGEX.matches(jumpSeekValue) && jumpSeekValue.toIntOrNull()?.let {
-                        it in 2007..2099
-                    } == true
+                    MATCH_YEAR_REGEX.matches(jumpSeekValue) &&
+                        jumpSeekValue.toIntOrNull()?.let {
+                            it in 2007..2099
+                        } == true
                     )
             ) {
                 uri.appendQueryParameter("seek", jumpSeekValue)
@@ -715,7 +720,7 @@ class EHentai(
                             when (left.removeSuffix(":").lowercase()) {
                                 "posted" -> datePosted = ZonedDateTime.parse(
                                     right,
-                                    MetadataUtil.EX_DATE_FORMAT.withZone(ZoneOffset.UTC)
+                                    MetadataUtil.EX_DATE_FORMAT.withZone(ZoneOffset.UTC),
                                 ).toInstant().toEpochMilli()
                                 // Example gallery with parent: https://e-hentai.org/g/1390451/7f181c2426/
                                 // Example JP gallery: https://exhentai.org/g/1375385/03519d541b/
@@ -805,6 +810,11 @@ class EHentai(
 
     override fun pageListParse(response: Response) =
         throw UnsupportedOperationException("Unused method was called somehow!")
+
+    override suspend fun getImageUrl(page: Page): String {
+        val imageUrlResponse = client.newCall(imageUrlRequest(page)).awaitSuccess()
+        return realImageUrlParse(imageUrlResponse, page)
+    }
 
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getImageUrl"))
     override fun fetchImageUrl(page: Page): Observable<String> {
@@ -1208,7 +1218,8 @@ class EHentai(
 
         val body = doc.body()
         val previews = body
-            .select("#gdt div div")
+            .select("#gdt > div > div")
+            .plus(body.select("#gdt > a"))
             .map {
                 val preview = parseNormalPreview(it)
                 PagePreviewInfo(preview.index, imageUrl = preview.toUrl())
@@ -1244,8 +1255,15 @@ class EHentai(
      * Parse normal previews with regular expressions
      */
     private fun parseNormalPreview(element: Element): EHentaiThumbnailPreview {
-        val index = element.selectFirst("img")!!.attr("alt").toInt()
-        val styles = element.attr("style").split(";").mapNotNull { it.trimOrNull() }
+        val imgElement = element.selectFirst("img")
+        val index = imgElement?.attr("alt")?.toInt()
+            ?: element.child(0).attr("title").removePrefix("Page ").substringBefore(":").toInt()
+        val styleElement = if (imgElement != null) {
+            element
+        } else {
+            element.child(0)
+        }
+        val styles = styleElement.attr("style").split(";").mapNotNull { it.trimOrNull() }
         val width = styles.first { it.startsWith("width:") }
             .removePrefix("width:")
             .removeSuffix("px")
@@ -1269,7 +1287,7 @@ class EHentai(
             .removeSuffix("px")
             .toInt()
 
-        return EHentaiThumbnailPreview(url, width, height, widthOffset, index).also(::println)
+        return EHentaiThumbnailPreview(url, width, height, widthOffset, index)
     }
     data class EHentaiThumbnailPreview(
         val imageUrl: String,

@@ -6,8 +6,11 @@ import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.model.toDomainTrack
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.tachiyomi.data.database.models.Track
+import eu.kanade.tachiyomi.data.track.model.TrackMangaMetadata
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.util.system.toast
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import logcat.LogPriority
 import okhttp3.OkHttpClient
 import tachiyomi.core.common.util.lang.withIOContext
@@ -52,6 +55,15 @@ abstract class BaseTracker(
     override val isLoggedIn: Boolean
         get() = getUsername().isNotEmpty() &&
             getPassword().isNotEmpty()
+
+    override val isLoggedInFlow: Flow<Boolean> by lazy {
+        combine(
+            trackPreferences.trackUsername(this).changes(),
+            trackPreferences.trackPassword(this).changes(),
+        ) { username, password ->
+            username.isNotEmpty() && password.isNotEmpty()
+        }
+    }
 
     override fun getUsername() = trackPreferences.trackUsername(this).get()
 
@@ -107,6 +119,10 @@ abstract class BaseTracker(
     override suspend fun setRemoteFinishDate(track: Track, epochMillis: Long) {
         track.finished_reading_date = epochMillis
         updateRemote(track)
+    }
+
+    override suspend fun getMangaMetadata(track: DomainTrack): TrackMangaMetadata? {
+        throw NotImplementedError("Not implemented.")
     }
 
     private suspend fun updateRemote(track: Track): Unit = withIOContext {

@@ -23,7 +23,13 @@ class MangaHandler(
     private val apiMangaParser: ApiMangaParser,
     private val followsHandler: FollowsHandler,
 ) {
-    suspend fun getMangaDetails(manga: SManga, sourceId: Long): SManga {
+    suspend fun getMangaDetails(
+        manga: SManga,
+        sourceId: Long,
+        coverQuality: String,
+        tryUsingFirstVolumeCover: Boolean,
+        altTitlesInDesc: Boolean,
+    ): SManga {
         return coroutineScope {
             val mangaId = MdUtil.getMangaId(manga.url)
             val response = async(Dispatchers.IO) { service.viewManga(mangaId) }
@@ -32,19 +38,30 @@ class MangaHandler(
                 async(Dispatchers.IO) {
                     kotlin.runCatching { service.mangasRating(mangaId) }.getOrNull()?.statistics?.get(mangaId)
                 }
+            val responseData = response.await()
+            val coverFileName = if (tryUsingFirstVolumeCover) {
+                async(Dispatchers.IO) {
+                    service.fetchFirstVolumeCover(responseData)
+                }
+            } else {
+                null
+            }
             apiMangaParser.parseToManga(
                 manga,
                 sourceId,
-                response.await(),
+                responseData,
                 simpleChapters.await(),
                 statistics.await(),
+                coverFileName?.await(),
+                coverQuality,
+                altTitlesInDesc,
             )
         }
     }
 
-    fun fetchMangaDetailsObservable(manga: SManga, sourceId: Long): Observable<SManga> {
+    fun fetchMangaDetailsObservable(manga: SManga, sourceId: Long, coverQuality: String, tryUsingFirstVolumeCover: Boolean, altTitlesInDesc: Boolean): Observable<SManga> {
         return runAsObservable {
-            getMangaDetails(manga, sourceId)
+            getMangaDetails(manga, sourceId, coverQuality, tryUsingFirstVolumeCover, altTitlesInDesc)
         }
     }
 
@@ -108,6 +125,36 @@ class MangaHandler(
     suspend fun getMangaFromChapterId(chapterId: String): String? {
         return withIOContext {
             apiMangaParser.chapterParseForMangaId(service.viewChapter(chapterId))
+        }
+    }
+
+    suspend fun getMangaMetadata(
+        track: Track,
+        sourceId: Long,
+        coverQuality: String,
+        tryUsingFirstVolumeCover: Boolean,
+        altTitlesInDesc: Boolean,
+    ): SManga? {
+        return withIOContext {
+            val mangaId = MdUtil.getMangaId(track.tracking_url)
+            val response = service.viewManga(mangaId)
+            val coverFileName = if (tryUsingFirstVolumeCover) {
+                service.fetchFirstVolumeCover(response)
+            } else {
+                null
+            }
+            apiMangaParser.parseToManga(
+                SManga.create().apply {
+                    url = track.tracking_url
+                },
+                sourceId,
+                response,
+                emptyList(),
+                null,
+                coverFileName,
+                coverQuality,
+                altTitlesInDesc,
+            )
         }
     }
 

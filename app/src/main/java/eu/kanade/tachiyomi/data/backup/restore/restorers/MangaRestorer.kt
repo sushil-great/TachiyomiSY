@@ -68,7 +68,7 @@ class MangaRestorer(
             )
     }
 
-    suspend fun restoreManga(
+    suspend fun restore(
         backupManga: BackupManga,
         backupCategories: List<BackupCategory>,
     ) {
@@ -89,7 +89,7 @@ class MangaRestorer(
                 chapters = backupManga.chapters,
                 categories = backupManga.categories,
                 backupCategories = backupCategories,
-                history = backupManga.history + backupManga.brokenHistory.map { it.toBackupHistory() },
+                history = backupManga.history,
                 tracks = backupManga.tracking,
                 excludedScanlators = backupManga.excludedScanlators,
                 // SY -->
@@ -202,6 +202,7 @@ class MangaRestorer(
                 bookmark = chapter.bookmark || dbChapter.bookmark,
                 read = chapter.read,
                 lastPageRead = chapter.lastPageRead,
+                sourceOrder = chapter.sourceOrder,
             )
         } else {
             chapter.copyFrom(dbChapter).let {
@@ -252,7 +253,7 @@ class MangaRestorer(
                     bookmark = chapter.bookmark,
                     lastPageRead = chapter.lastPageRead,
                     chapterNumber = null,
-                    sourceOrder = null,
+                    sourceOrder = if (isSync) chapter.sourceOrder else null,
                     dateFetch = null,
                     dateUpload = null,
                     chapterId = chapter.id,
@@ -313,7 +314,7 @@ class MangaRestorer(
         restoreCategories(manga, categories, backupCategories)
         restoreChapters(manga, chapters)
         restoreTracking(manga, tracks)
-        restoreHistory(history)
+        restoreHistory(manga, history)
         restoreExcludedScanlators(manga, excludedScanlators)
         updateManga.awaitUpdateFetchInterval(manga, now, currentFetchWindow)
         // SY -->
@@ -359,13 +360,14 @@ class MangaRestorer(
         }
     }
 
-    private suspend fun restoreHistory(backupHistory: List<BackupHistory>) {
+    private suspend fun restoreHistory(manga: Manga, backupHistory: List<BackupHistory>) {
         val toUpdate = backupHistory.mapNotNull { history ->
-            val dbHistory = handler.awaitOneOrNull { historyQueries.getHistoryByChapterUrl(history.url) }
+            val dbHistory = handler.awaitOneOrNull { historyQueries.getHistoryByChapterUrl(manga.id, history.url) }
             val item = history.getHistoryImpl()
 
             if (dbHistory == null) {
-                val chapter = handler.awaitOneOrNull { chaptersQueries.getChapterByUrl(history.url) }
+                val chapter = handler.awaitList { chaptersQueries.getChapterByUrl(history.url) }
+                    .find { it.manga_id == manga.id }
                 return@mapNotNull if (chapter == null) {
                     // Chapter doesn't exist; skip
                     null

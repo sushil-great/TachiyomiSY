@@ -23,14 +23,17 @@ class ReaderPreferences(
 
     fun flashOnPageChange() = preferenceStore.getBoolean("pref_reader_flash", false)
 
+    fun flashDurationMillis() = preferenceStore.getInt("pref_reader_flash_duration", MILLI_CONVERSION)
+
+    fun flashPageInterval() = preferenceStore.getInt("pref_reader_flash_interval", 1)
+
+    fun flashColor() = preferenceStore.getEnum("pref_reader_flash_mode", FlashColor.BLACK)
+
     fun doubleTapAnimSpeed() = preferenceStore.getInt("pref_double_tap_anim_speed", 500)
 
     fun showPageNumber() = preferenceStore.getBoolean("pref_show_page_number_key", true)
 
     fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
-
-    // TODO: default this to true if reader long strip ever goes stable
-    fun trueColor() = preferenceStore.getBoolean("pref_true_color_key", false)
 
     fun fullscreen() = preferenceStore.getBoolean("fullscreen", true)
 
@@ -185,6 +188,12 @@ class ReaderPreferences(
     fun markReadDupe() = preferenceStore.getBoolean("mark_read_dupe", false)
     // SY <--
 
+    enum class FlashColor {
+        BLACK,
+        WHITE,
+        WHITE_BLACK,
+    }
+
     enum class TappingInvertMode(
         val titleRes: StringResource,
         val shouldInvertHorizontal: Boolean = false,
@@ -212,6 +221,8 @@ class ReaderPreferences(
     companion object {
         const val WEBTOON_PADDING_MIN = 0
         const val WEBTOON_PADDING_MAX = 25
+
+        const val MILLI_CONVERSION = 100
 
         val TapZones = listOf(
             MR.strings.label_default,
@@ -274,7 +285,7 @@ class ReaderPreferences(
         val archiveModeTypes = listOf(
             SYMR.strings.archive_mode_load_from_file,
             SYMR.strings.archive_mode_load_into_memory,
-            SYMR.strings.archive_mode_cache_to_disk
+            SYMR.strings.archive_mode_cache_to_disk,
         )
         // SY <--
     }

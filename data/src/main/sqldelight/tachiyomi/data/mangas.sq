@@ -80,10 +80,12 @@ FROM mangas
 WHERE favorite = 1;
 
 getReadMangaNotInLibrary:
-SELECT mangas.*
+SELECT *
 FROM mangas
-WHERE favorite = 0 AND _id IN(
-    SELECT chapters.manga_id FROM chapters WHERE read = 1 OR last_page_read != 0
+WHERE favorite = 0 AND _id IN (
+    SELECT DISTINCT chapters.manga_id 
+    FROM chapters 
+    WHERE read = 1 OR last_page_read != 0
 );
 
 getAllManga:
@@ -119,6 +121,14 @@ FROM mangas
 WHERE favorite = 1
 AND LOWER(title) = :title
 AND _id != :id;
+
+getUpcomingManga:
+SELECT *
+FROM mangas
+WHERE next_update >= :startOfDay
+AND favorite = 1
+AND status IN :statuses
+ORDER BY next_update ASC;
 
 resetViewerFlags:
 UPDATE mangas

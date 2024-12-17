@@ -4,10 +4,7 @@ import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
 import eu.kanade.domain.chapter.interactor.SetReadStatus
 import eu.kanade.domain.chapter.interactor.SyncChaptersWithSource
 import eu.kanade.domain.download.interactor.DeleteDownload
-import eu.kanade.domain.extension.interactor.CreateExtensionRepo
-import eu.kanade.domain.extension.interactor.DeleteExtensionRepo
 import eu.kanade.domain.extension.interactor.GetExtensionLanguages
-import eu.kanade.domain.extension.interactor.GetExtensionRepos
 import eu.kanade.domain.extension.interactor.GetExtensionSources
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
 import eu.kanade.domain.extension.interactor.TrustExtension
@@ -26,6 +23,20 @@ import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.RefreshTracks
 import eu.kanade.domain.track.interactor.SyncChapterProgressWithTrack
 import eu.kanade.domain.track.interactor.TrackChapter
+import eu.kanade.tachiyomi.di.InjektModule
+import eu.kanade.tachiyomi.di.addFactory
+import eu.kanade.tachiyomi.di.addSingletonFactory
+import mihon.data.repository.ExtensionRepoRepositoryImpl
+import mihon.domain.chapter.interactor.FilterChaptersForDownload
+import mihon.domain.extensionrepo.interactor.CreateExtensionRepo
+import mihon.domain.extensionrepo.interactor.DeleteExtensionRepo
+import mihon.domain.extensionrepo.interactor.GetExtensionRepo
+import mihon.domain.extensionrepo.interactor.GetExtensionRepoCount
+import mihon.domain.extensionrepo.interactor.ReplaceExtensionRepo
+import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
+import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
+import mihon.domain.extensionrepo.service.ExtensionRepoService
+import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.data.category.CategoryRepositoryImpl
 import tachiyomi.data.chapter.ChapterRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
@@ -83,11 +94,7 @@ import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.domain.track.repository.TrackRepository
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.repository.UpdatesRepository
-import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
-import uy.kohesive.injekt.api.addFactory
-import uy.kohesive.injekt.api.addSingletonFactory
-import uy.kohesive.injekt.api.get
 
 class DomainModule : InjektModule {
 
@@ -111,6 +118,7 @@ class DomainModule : InjektModule {
         addFactory { GetMangaByUrlAndSourceId(get()) }
         addFactory { GetManga(get()) }
         addFactory { GetNextChapters(get(), get(), get(), get()) }
+        addFactory { GetUpcomingManga(get()) }
         addFactory { ResetViewerFlags(get()) }
         addFactory { SetMangaChapterFlags(get()) }
         addFactory { FetchInterval(get()) }
@@ -144,6 +152,7 @@ class DomainModule : InjektModule {
         addFactory { ShouldUpdateDbChapter() }
         addFactory { SyncChaptersWithSource(get(), get(), get(), get(), get(), get(), get(), get()) }
         addFactory { GetAvailableScanlators(get()) }
+        addFactory { FilterChaptersForDownload(get(), get(), get(), get()) }
 
         addSingletonFactory<HistoryRepository> { HistoryRepositoryImpl(get()) }
         addFactory { GetHistory(get()) }
@@ -171,10 +180,15 @@ class DomainModule : InjektModule {
         addFactory { ToggleLanguage(get()) }
         addFactory { ToggleSource(get()) }
         addFactory { ToggleSourcePin(get()) }
-        addFactory { TrustExtension(get()) }
+        addFactory { TrustExtension(get(), get()) }
 
-        addFactory { CreateExtensionRepo(get()) }
+        addSingletonFactory<ExtensionRepoRepository> { ExtensionRepoRepositoryImpl(get()) }
+        addFactory { ExtensionRepoService(get(), get()) }
+        addFactory { GetExtensionRepo(get()) }
+        addFactory { GetExtensionRepoCount(get()) }
+        addFactory { CreateExtensionRepo(get(), get()) }
         addFactory { DeleteExtensionRepo(get()) }
-        addFactory { GetExtensionRepos(get()) }
+        addFactory { ReplaceExtensionRepo(get()) }
+        addFactory { UpdateExtensionRepo(get(), get()) }
     }
 }

@@ -9,13 +9,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import net.lingala.zip4j.model.ZipParameters
-import net.lingala.zip4j.model.enums.AesKeyStrength
-import net.lingala.zip4j.model.enums.EncryptionMethod
+import mihon.core.common.archive.ArchiveReader
+import tachiyomi.core.common.util.system.ImageUtil
 import uy.kohesive.injekt.injectLazy
+import java.io.BufferedInputStream
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.nio.CharBuffer
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.crypto.Cipher
@@ -31,30 +32,30 @@ import javax.crypto.spec.IvParameterSpec
  */
 object CbzCrypto {
     const val DATABASE_NAME = "tachiyomiEncrypted.db"
-    const val DEFAULT_COVER_NAME = "cover.jpg"
+    private const val DEFAULT_COVER_NAME = "cover.jpg"
     private val securityPreferences: SecurityPreferences by injectLazy()
-    private val keyStore = KeyStore.getInstance(KEYSTORE).apply {
+    private val keyStore = KeyStore.getInstance(Keystore).apply {
         load(null)
     }
 
     private val encryptionCipherCbz
-        get() = Cipher.getInstance(CRYPTO_SETTINGS).apply {
+        get() = Cipher.getInstance(CryptoSettings).apply {
             init(
                 Cipher.ENCRYPT_MODE,
-                getKey(ALIAS_CBZ),
+                getKey(AliasCbz),
             )
         }
 
     private val encryptionCipherSql
-        get() = Cipher.getInstance(CRYPTO_SETTINGS).apply {
+        get() = Cipher.getInstance(CryptoSettings).apply {
             init(
                 Cipher.ENCRYPT_MODE,
-                getKey(ALIAS_SQL),
+                getKey(AliasSql),
             )
         }
 
     private fun getDecryptCipher(iv: ByteArray, alias: String): Cipher {
-        return Cipher.getInstance(CRYPTO_SETTINGS).apply {
+        return Cipher.getInstance(CryptoSettings).apply {
             init(
                 Cipher.DECRYPT_MODE,
                 getKey(alias),
@@ -69,12 +70,12 @@ object CbzCrypto {
     }
 
     private fun generateKey(alias: String): SecretKey {
-        return KeyGenerator.getInstance(ALGORITHM).apply {
+        return KeyGenerator.getInstance(Algorithm).apply {
             init(
                 KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                    .setKeySize(KEY_SIZE)
-                    .setBlockModes(BLOCK_MODE)
-                    .setEncryptionPaddings(PADDING)
+                    .setKeySize(KeySize)
+                    .setBlockModes(BlockMode)
+                    .setEncryptionPaddings(Padding)
                     .setRandomizedEncryptionRequired(true)
                     .setUserAuthenticationRequired(false)
                     .build(),
@@ -82,13 +83,13 @@ object CbzCrypto {
         }.generateKey()
     }
 
-    private fun encrypt(password: String, cipher: Cipher): String {
+    private fun encrypt(password: ByteArray, cipher: Cipher): String {
         val outputStream = ByteArrayOutputStream()
         outputStream.use { output ->
             output.write(cipher.iv)
-            ByteArrayInputStream(password.toByteArray()).use { input ->
-                val buffer = ByteArray(BUFFER_SIZE)
-                while (input.available() > BUFFER_SIZE) {
+            ByteArrayInputStream(password).use { input ->
+                val buffer = ByteArray(BufferSize)
+                while (input.available() > BufferSize) {
                     input.read(buffer)
                     output.write(cipher.update(buffer))
                 }
@@ -98,51 +99,62 @@ object CbzCrypto {
         return Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
     }
 
-    private fun decrypt(encryptedPassword: String, alias: String): String {
+    private fun decrypt(encryptedPassword: String, alias: String): ByteArray {
         val inputStream = Base64.decode(encryptedPassword, Base64.DEFAULT).inputStream()
         return inputStream.use { input ->
-            val iv = ByteArray(IV_SIZE)
+            val iv = ByteArray(IvSize)
             input.read(iv)
             val cipher = getDecryptCipher(iv, alias)
-            ByteArrayOutputStream().use { output ->
-                val buffer = ByteArray(BUFFER_SIZE)
-                while (inputStream.available() > BUFFER_SIZE) {
+            ByteArrayOutputStreamPassword().use { output ->
+                val buffer = ByteArray(BufferSize)
+                while (inputStream.available() > BufferSize) {
                     inputStream.read(buffer)
                     output.write(cipher.update(buffer))
                 }
                 output.write(cipher.doFinal(inputStream.readBytes()))
-                output.toString()
+                output.toByteArray().also {
+                    output.clear()
+                }
             }
         }
     }
 
     fun deleteKeyCbz() {
-        keyStore.deleteEntry(ALIAS_CBZ)
-        generateKey(ALIAS_CBZ)
+        keyStore.deleteEntry(AliasCbz)
+        generateKey(AliasCbz)
     }
 
     fun encryptCbz(password: String): String {
-        return encrypt(password, encryptionCipherCbz)
+        return encrypt(password.toByteArray(), encryptionCipherCbz)
     }
 
-    fun getDecryptedPasswordCbz(): CharArray {
+    fun getDecryptedPasswordCbz(): ByteArray {
         val encryptedPassword = securityPreferences.cbzPassword().get()
         if (encryptedPassword.isBlank()) error("This archive is encrypted please set a password")
 
-        return decrypt(encryptedPassword, ALIAS_CBZ).toCharArray()
+        return decrypt(encryptedPassword, AliasCbz)
     }
 
     private fun generateAndEncryptSqlPw() {
         val charPool: List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
-        val password = (1..SQL_PASSWORD_LENGTH).map {
-            charPool[SecureRandom().nextInt(charPool.size)]
-        }.joinToString("", transform = { it.toString() })
-        securityPreferences.sqlPassword().set(encrypt(password, encryptionCipherSql))
+        val passwordArray = CharArray(SqlPasswordLength)
+        for (i in 0..<SqlPasswordLength) {
+            passwordArray[i] = charPool[SecureRandom().nextInt(charPool.size)]
+        }
+        val passwordBuffer = Charsets.UTF_8.encode(CharBuffer.wrap(passwordArray))
+        val passwordBytes = ByteArray(passwordBuffer.limit())
+        passwordBuffer.get(passwordBytes)
+        securityPreferences.sqlPassword().set(encrypt(passwordBytes, encryptionCipherSql))
+            .also {
+                passwordArray.fill('#')
+                passwordBuffer.array().fill('#'.code.toByte())
+                passwordBytes.fill('#'.code.toByte())
+            }
     }
 
     fun getDecryptedPasswordSql(): ByteArray {
         if (securityPreferences.sqlPassword().get().isBlank()) generateAndEncryptSqlPw()
-        return decrypt(securityPreferences.sqlPassword().get(), ALIAS_SQL).toByteArray()
+        return decrypt(securityPreferences.sqlPassword().get(), AliasSql)
     }
 
     fun isPasswordSet(): Boolean {
@@ -168,27 +180,12 @@ object CbzCrypto {
         }
     }
 
-    fun setZipParametersEncrypted(zipParameters: ZipParameters) {
-        zipParameters.isEncryptFiles = true
-
+    fun getPreferredEncryptionAlgo(): ByteArray =
         when (securityPreferences.encryptionType().get()) {
-            SecurityPreferences.EncryptionType.AES_256 -> {
-                zipParameters.encryptionMethod = EncryptionMethod.AES
-                zipParameters.aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
-            }
-            SecurityPreferences.EncryptionType.AES_192 -> {
-                zipParameters.encryptionMethod = EncryptionMethod.AES
-                zipParameters.aesKeyStrength = AesKeyStrength.KEY_STRENGTH_192
-            }
-            SecurityPreferences.EncryptionType.AES_128 -> {
-                zipParameters.encryptionMethod = EncryptionMethod.AES
-                zipParameters.aesKeyStrength = AesKeyStrength.KEY_STRENGTH_128
-            }
-            SecurityPreferences.EncryptionType.ZIP_STANDARD -> {
-                zipParameters.encryptionMethod = EncryptionMethod.ZIP_STANDARD
-            }
+            SecurityPreferences.EncryptionType.AES_256 -> "zip:encryption=aes256".toByteArray()
+            SecurityPreferences.EncryptionType.AES_128 -> "zip:encryption=aes128".toByteArray()
+            SecurityPreferences.EncryptionType.ZIP_STANDARD -> "zip:encryption=zipcrypt".toByteArray()
         }
-    }
 
     fun detectCoverImageArchive(stream: InputStream): Boolean {
         val bytes = ByteArray(128)
@@ -200,20 +197,35 @@ object CbzCrypto {
         }
         return String(bytes).contains(DEFAULT_COVER_NAME, ignoreCase = true)
     }
+
+    fun ArchiveReader.getCoverStream(): BufferedInputStream? {
+        this.getInputStream(DEFAULT_COVER_NAME)?.let { stream ->
+            if (ImageUtil.isImage(DEFAULT_COVER_NAME) { stream }) {
+                return this.getInputStream(DEFAULT_COVER_NAME)?.buffered()
+            }
+        }
+        return null
+    }
 }
 
-private const val BUFFER_SIZE = 2048
-private const val KEY_SIZE = 256
-private const val IV_SIZE = 16
+private const val BufferSize = 2048
+private const val KeySize = 256
+private const val IvSize = 16
 
-private const val ALGORITHM = KeyProperties.KEY_ALGORITHM_AES
-private const val BLOCK_MODE = KeyProperties.BLOCK_MODE_CBC
-private const val PADDING = KeyProperties.ENCRYPTION_PADDING_PKCS7
-private const val CRYPTO_SETTINGS = "$ALGORITHM/$BLOCK_MODE/$PADDING"
+private const val Algorithm = KeyProperties.KEY_ALGORITHM_AES
+private const val BlockMode = KeyProperties.BLOCK_MODE_CBC
+private const val Padding = KeyProperties.ENCRYPTION_PADDING_PKCS7
+private const val CryptoSettings = "$Algorithm/$BlockMode/$Padding"
 
-private const val KEYSTORE = "AndroidKeyStore"
-private const val ALIAS_CBZ = "cbzPw"
-private const val ALIAS_SQL = "sqlPw"
+private const val Keystore = "AndroidKeyStore"
+private const val AliasCbz = "cbzPw"
+private const val AliasSql = "sqlPw"
 
-private const val SQL_PASSWORD_LENGTH = 32
+private const val SqlPasswordLength = 32
+
+private class ByteArrayOutputStreamPassword : ByteArrayOutputStream() {
+    fun clear() {
+        this.buf.fill('#'.code.toByte())
+    }
+}
 // SY <--

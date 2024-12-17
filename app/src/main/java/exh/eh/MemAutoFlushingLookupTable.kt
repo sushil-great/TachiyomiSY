@@ -17,10 +17,13 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okio.BufferedSource
+import okio.buffer
+import okio.sink
+import okio.source
 import java.io.Closeable
 import java.io.File
 import java.io.FileNotFoundException
-import java.io.InputStream
 import java.nio.ByteBuffer
 import kotlin.concurrent.thread
 
@@ -67,7 +70,7 @@ class MemAutoFlushingLookupTable<T>(
         Runtime.getRuntime().addShutdownHook(shutdownHook)
     }
 
-    private fun InputStream.requireBytes(targetArray: ByteArray, byteCount: Int): Boolean {
+    private fun BufferedSource.requireBytes(targetArray: ByteArray, byteCount: Int): Boolean {
         var readIter = 0
         while (true) {
             val readThisIter = read(targetArray, readIter, byteCount - readIter)
@@ -80,7 +83,7 @@ class MemAutoFlushingLookupTable<T>(
     private fun initialLoad() {
         launch {
             try {
-                atomicFile.openRead().buffered().use { input ->
+                atomicFile.openRead().source().buffer().use { input ->
                     val bb = ByteBuffer.allocate(8)
 
                     while (true) {
@@ -89,7 +92,7 @@ class MemAutoFlushingLookupTable<T>(
                         val size = bb.getInt(4)
                         val strBArr = ByteArray(size)
                         if (!input.requireBytes(strBArr, size)) break
-                        table.put(k, serializer.read(strBArr.toString(Charsets.UTF_8)))
+                        table.put(k, serializer.read(strBArr.decodeToString()))
                     }
                 }
             } catch (e: FileNotFoundException) {
@@ -126,9 +129,9 @@ class MemAutoFlushingLookupTable<T>(
 
         val fos = atomicFile.startWrite()
         try {
-            val out = fos.buffered()
+            val out = fos.sink().buffer()
             table.forEach { key, value ->
-                val v = serializer.write(value).toByteArray(Charsets.UTF_8)
+                val v = serializer.write(value).encodeToByteArray()
                 bb.putInt(0, key)
                 bb.putInt(4, v.size)
                 out.write(bb.array())

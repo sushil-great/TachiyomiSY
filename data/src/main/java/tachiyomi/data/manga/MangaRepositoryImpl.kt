@@ -12,6 +12,8 @@ import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.repository.MangaRepository
+import java.time.LocalDate
+import java.time.ZoneId
 
 class MangaRepositoryImpl(
     private val handler: DatabaseHandler,
@@ -49,6 +51,10 @@ class MangaRepositoryImpl(
         return handler.awaitList { mangasQueries.getFavorites(MangaMapper::mapManga) }
     }
 
+    override suspend fun getReadMangaNotInLibrary(): List<Manga> {
+        return handler.awaitList { mangasQueries.getReadMangaNotInLibrary(MangaMapper::mapManga) }
+    }
+
     override suspend fun getLibraryManga(): List<LibraryManga> {
         return handler.awaitListExecutable {
             (handler as AndroidDatabaseHandler).getLibraryQuery()
@@ -70,6 +76,13 @@ class MangaRepositoryImpl(
     override suspend fun getDuplicateLibraryManga(id: Long, title: String): List<Manga> {
         return handler.awaitList {
             mangasQueries.getDuplicateLibraryManga(title, id, MangaMapper::mapManga)
+        }
+    }
+
+    override suspend fun getUpcomingManga(statuses: Set<Long>): Flow<List<Manga>> {
+        val epochMillis = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000
+        return handler.subscribeToList {
+            mangasQueries.getUpcomingManga(epochMillis, statuses, MangaMapper::mapManga)
         }
     }
 
@@ -189,7 +202,7 @@ class MangaRepositoryImpl(
         handler.await { mangasQueries.deleteById(mangaId) }
     }
 
-    override suspend fun getReadMangaNotInLibrary(): List<LibraryManga> {
+    override suspend fun getReadMangaNotInLibraryView(): List<LibraryManga> {
         return handler.awaitListExecutable {
             (handler as AndroidDatabaseHandler).getLibraryQuery("M.favorite = 0 AND C.readCount != 0")
         }.map(MangaMapper::mapLibraryView)

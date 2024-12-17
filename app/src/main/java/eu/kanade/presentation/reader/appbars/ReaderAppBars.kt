@@ -74,6 +74,7 @@ fun ReaderAppBars(
     // bookmarked: Boolean,
     // onToggleBookmarked: () -> Unit,
     onOpenInWebView: (() -> Unit)?,
+    onOpenInBrowser: (() -> Unit)?,
     onShare: (() -> Unit)?,
 
     viewer: Viewer?,
@@ -83,7 +84,7 @@ fun ReaderAppBars(
     enabledPrevious: Boolean,
     currentPage: Int,
     totalPages: Int,
-    onSliderValueChange: (Int) -> Unit,
+    onPageIndexChange: (Int) -> Unit,
 
     readingMode: ReadingMode,
     onClickReadingMode: () -> Unit,
@@ -153,7 +154,7 @@ fun ReaderAppBars(
                 enabledPrevious = enabledPrevious,
                 currentPage = currentPage,
                 totalPages = totalPages,
-                onSliderValueChange = onSliderValueChange,
+                onPageIndexChange = onPageIndexChange,
                 isVerticalSlider = true,
                 currentPageText = currentPageText,
             )
@@ -181,7 +182,7 @@ fun ReaderAppBars(
                 enabledPrevious = enabledPrevious,
                 currentPage = currentPage,
                 totalPages = totalPages,
-                onSliderValueChange = onSliderValueChange,
+                onPageIndexChange = onPageIndexChange,
                 isVerticalSlider = true,
                 currentPageText = currentPageText,
             )
@@ -284,7 +285,7 @@ fun ReaderAppBars(
                             enabledPrevious = enabledPrevious,
                             currentPage = currentPage,
                             totalPages = totalPages,
-                            onSliderValueChange = onSliderValueChange,
+                            onPageIndexChange = onPageIndexChange,
                             isVerticalSlider = false,
                             currentPageText = currentPageText,
                         )
@@ -308,6 +309,7 @@ fun ReaderAppBars(
                         doublePages = doublePages,
                         onClickChapterList = onClickChapterList,
                         onClickWebView = onOpenInWebView,
+                        onClickBrowser = onOpenInBrowser,
                         onClickShare = onShare,
                         onClickPageLayout = onClickPageLayout,
                         onClickShiftPage = onClickShiftPage,
